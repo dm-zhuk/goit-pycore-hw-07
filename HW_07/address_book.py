@@ -1,22 +1,23 @@
 from collections import UserDict
+from datetime import datetime, timedelta
 import re
 
 
-# Базовий клас для полів запису
 class Field:
     def __init__(self, value):
         self.value = value
+
+    def __repr__(self):
+        return str(self)
 
     def __str__(self):
         return str(self.value)
 
 
-# Клас для зберігання імені контакту. Обов'язкове поле
 class Name(Field):
     pass
 
 
-# Клас для зберігання номера телефону. Має валідацію формату (10 цифр)
 class Phone(Field):
     def __init__(self, phone):
         if not self.validate(phone):
@@ -25,44 +26,56 @@ class Phone(Field):
 
     @staticmethod
     def validate(phone):
-        return re.match(r"^\d{10}$", phone) is not None
+        return bool(re.match(r"^\d{10}$", phone))
 
 
-# Клас для зберігання інформації про контакт, включаючи ім'я та список телефонів
+class Birthday(Field):
+    def __init__(self, value):
+        try:
+            self.value = self.validate(value)
+        except ValueError:
+            raise ValueError("Invalid date format. Use DD.MM.YYYY")
+        super().__init__(self.value)
+
+    @staticmethod
+    def validate(date_str):
+        return datetime.strptime(date_str, "%d.%m.%Y")
+
+
+class PhoneNotFoundError(Exception):
+    pass
+
+
 class Record:
     def __init__(self, name):
         self.name = Name(name)
         self.phones = []
+        self.birthday = None
 
-    def add_phone(self, phone):
-        self.phones.append(Phone(phone))
+    def add_phone(self, phone: Phone):
+        if phone in self.phones:
+            raise ValueError("Phone number already exists.")
+        self.phones.append(phone)
 
-    def edit_phone(self, old_phone, new_phone):
-        if not self.remove_phone(old_phone):
-            print(f"Phone number {old_phone} not found.")
-        else:
-            self.add_phone(new_phone)
+    def remove_phone(self, phone_value):
+        for phone in self.phones:
+            if phone.value == phone_value:
+                self.phones.remove(phone)
+                return
+        raise PhoneNotFoundError("Phone number not found.")
 
-    def find_phone(self, phone):
-        for p in self.phones:
-            if p.value == phone:
-                return p.value
-        return None
+    def add_birthday(self, birthday):
+        self.birthday = Birthday(birthday)
 
-    def remove_phone(self, phone):
-        if self.find_phone(phone) is None:
-            print(f"Phone number {phone} not found. Cannot remove.")
-            return False
-        else:
-            self.phones = [p for p in self.phones if p.value != phone]
-            print(f"Removed phone number: {phone}")
-            return True
+    def get_birthday_str(self):
+        return self.birthday.value.strftime("%d.%m.%Y") if self.birthday else None
 
     def __str__(self):
-        return f"Contact name: {self.name.value}, phones: {'; '.join(p.value for p in self.phones)}"
+        phone_numbers = ", ".join(str(phone) for phone in self.phones)
+        birthday_str = self.get_birthday_str() or "No birthday set"
+        return f"Name: {self.name}, Phones: {phone_numbers}, Birthday: {birthday_str}"
 
 
-# Клас для зберігання та управління записами
 class AddressBook(UserDict):
     def add_record(self, record):
         self.data[record.name.value] = record
@@ -73,41 +86,63 @@ class AddressBook(UserDict):
     def delete(self, name):
         if name in self.data:
             del self.data[name]
+        else:
+            raise KeyError(f"Contact '{name}' not found.")
+
+    def get_upcoming_birthdays(self):
+        today = datetime.today()
+        upcoming_birthdays = []
+
+        for record in self.data.values():
+            if record.birthday:
+                birthday = record.birthday.value
+                birthday_this_year = birthday.replace(year=today.year)
+
+                if birthday_this_year < today:
+                    birthday_this_year = birthday_this_year.replace(year=today.year + 1)
+
+                days_until_birthday = (birthday_this_year - today).days
+
+                if 0 <= days_until_birthday <= 7:
+                    greeting_date = birthday_this_year + timedelta(
+                        days=(
+                            2
+                            if birthday_this_year.weekday() == 5
+                            else 1 if birthday_this_year.weekday() == 6 else 0
+                        )
+                    )
+
+                    upcoming_birthdays.append(
+                        {
+                            "name": record.name.value,
+                            "greeting_date": greeting_date.strftime("%B %d"),
+                        }
+                    )
+        return upcoming_birthdays
 
     def __str__(self):
         return "\n".join(str(record) for record in self.data.values())
 
 
-"""Checkup block:"""
-
-# Створення нової адресної книги
 book = AddressBook()
 
-# Додавання записів
-john_record = Record("John")
-john_record.add_phone("1234567890")
-john_record.add_phone("5555555555")
-book.add_record(john_record)
+"""Test sample:"""
+record1 = Record("John Doe")
+record1.add_phone("1234567890")
+record1.add_birthday("18.03.1990")
+book.add_record(record1)
 
-jane_record = Record("Jane")
-jane_record.add_phone("9876543210")
-book.add_record(jane_record)
+record2 = Record("Jane Smith")
+record2.add_phone("0987654321")
+record2.add_birthday("22.03.1992")
+book.add_record(record2)
 
-# Виведення всіх записів у книзі
-print("All contacts in the address book:")
-print(book)
+upcoming_birthdays = book.get_upcoming_birthdays()
 
-# Знаходження та редагування телефону для John
-john = book.find("John")
-john.edit_phone("1234567890", "1112223333")
-print("After editing John's phone:")
-print(john)  # Виведення: Contact name: John, phones: 1112223333; 5555555555
-
-# Пошук конкретного телефону у записі John
-found_phone = john.find_phone("5555555555")
-print(f"{john.name.value}: {found_phone}")  # Виведення: John: 5555555555
-
-# Видалення запису Jane
-book.delete("Jane")
-print("After deleting Jane:")
-print(book)
+if upcoming_birthdays:
+    greetings = ", ".join(
+        [f"{name['name']} on {name['greeting_date']}" for name in upcoming_birthdays]
+    )
+    print(f"Current week greetings list: {greetings}")
+else:
+    print("No upcoming birthdays this week.")
