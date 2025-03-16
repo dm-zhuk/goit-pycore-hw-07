@@ -83,6 +83,9 @@ class AddressBook(UserDict):
     def find(self, name):
         return self.data.get(name)
 
+    def find_all(self, name):
+        return [record for record in self.data.values() if record.name.value == name]
+
     def delete(self, name):
         if name in self.data:
             del self.data[name]

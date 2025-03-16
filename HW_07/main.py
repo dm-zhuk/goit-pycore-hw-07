@@ -34,28 +34,17 @@ def main():
             print(show_phone(args, book))
         elif command == "all":
             print(show_all(book))
+        elif command == "change":
+            print(change_contact(args, book))
         elif command == "add-birthday":
             print(add_birthday(args, book))
+        elif command == "delete":
+            print(delete_contact(args, book))
         elif command == "show-birthday":
             print(show_birthday(args, book))
         elif command == "birthdays":
             print(birthdays(args, book))
-        elif command == "change":
-            if len(args) < 2:
-                print("Please provide: name & new value")
-            elif len(args) == 3:
-                name, old_phone, new_phone = args
-                result = change_contact(name, old_phone, new_phone, book)
-                print(result)
-            else:
-                print("Change command not recognized. Please specify what to change.")
-        elif command == "delete":
-            if len(args) != 1:
-                print("Please provide the name of the contact to delete.")
-            else:
-                name = args[0]
-                result = delete_contact(name, book)
-                print(result)
+
         else:
             print("Invalid command. Please try again.")
 
